@@ -1,24 +1,102 @@
 #!/usr/bin/env ruby
 
+require 'json'
+require 'pp'
+require 'open3'
+
 module Ow
+
+  class Instance
+    attr_reader :name, :layer
+
+    def initialize(layer, name, hash)
+      @layer = layer
+      @name = name
+      @hash = hash
+      inspect
+    end
+
+    def inspect
+      o, s = Open3.capture2("docker inspect #{container_name}", :stdin_data => "")
+      begin
+        @json = JSON.parse(s)
+        @json = @json.first
+        puts @json["NetworkSettings"]["IPAddress"]
+      rescue
+      end
+    end
+
+    def [](idx)
+      if @hash[idx].nil?
+        nil
+      else
+        @hash[idx] || @hash[idx.to_s]
+      end
+    end
+
+    def run
+      cmd = "docker run --name #{container_name} -d kureikain/opsworks:0.1 dumb-init /bin/bash -c \"while true; do sleep 5; done\""
+      o, s = Open3.capture2(cmd, :stdin_data => "")
+      inspect
+    end
+
+    private
+    def container_name
+      "#{@name}-#{@hash['private_ip']}"
+    end
+  end
 
   class Runner
 
     class << self
       def run!(args)
-        ow = Ow.new
-        puts args
+        ow = Runner.new
+        ow
         ow
       end
     end
 
-    attr_reader :ssh
+    attr_reader :ssh, :json_file, :opsworks_json
+    attr_reader :rc
+
     def initialize
+      @rc = 0
       @ssh = {
-        user: ENV[:OW_SSH_USER],
-        host: ENV[:OW_SSH_HOST],
-        key:  ENV[:OW_SSH_KEY],
+        user: ENV['OW_SSH_USER'],
+        host: ENV['OW_SSH_HOST'],
+        key:  ENV['OW_SSH_KEY'],
       }
+      @json_file = ENV['OW_JSON'] || 'opsworks.json'
+      parse
+      setup
+    end
+
+    def parse
+      begin
+        @opsworks_json = JSON.parse(File.read(@json_file))
+
+        @instances = @opsworks_json["opsworks"]["layers"]
+          .select {|name, l| !l["instances"].nil? }
+          .map do |name, layer|
+          layer["instances"].map do |host, instance|
+            Instance.new name, host, instance
+          end
+        end.flatten
+      rescue  => e
+        puts "Cannot parse json. #{e}"
+        exit 1
+      end
+    end
+
+    def setup
+      @instances.each do |i|
+        puts "Create container for: #{i['private_ip']}"
+        i.run
+      end
+    end
+
+    def run
+      puts "run test"
     end
 
     def get_json
@@ -31,5 +109,5 @@ module Ow
   end
 end
 
-Ow.run! ARGV
-puts `which ruby`
+exit(Ow::Runner.run!(ARGV).rc)
+
