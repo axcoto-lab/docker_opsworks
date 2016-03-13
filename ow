@@ -38,10 +38,10 @@ module Ow
     def destroy
       cmd = "docker stop #{container_name}"
       o, s = Open3.capture2(cmd, :stdin_data => "")
-      puts o
+      puts "Stop #{o}"
       cmd = "docker rm #{container_name}"
       o, s = Open3.capture2(cmd, :stdin_data => "")
-      puts o
+      puts "Destory #{o}"
     end
 
     def container_ip
@@ -49,14 +49,13 @@ module Ow
     end
 
     def run
-      if @json["NetworkSettings"].nil?
-        cmd = "docker run --name #{container_name} -d kureikain/opsworks:0.1 dumb-init /bin/bash -c \"while true; do sleep 5; done\""
+      if @json.nil? || @json["NetworkSettings"].nil?
+        cmd = "docker run --name #{container_name} -d -v #{Dir.pwd}:/opt/opsworks kureikain/opsworks:0.1 dumb-init /bin/bash -c \"while true; do sleep 5; done\""
         o, s = Open3.capture2(cmd, :stdin_data => "")
         inspect
       end
     end
 
-    private
     def container_name
       "#{@name}-#{@hash['private_ip']}"
     end
@@ -64,22 +63,24 @@ module Ow
 
   class Runner
 
+    attr_reader :ssh, :json_file, :opsworks_json
+    attr_reader :args
+    attr_reader :rc
+
     class << self
       def dispatch(args)
-        ow = Runner.new
+        ow = Runner.new args
         if args[0] == 'destroy' 
           ow.destroy
         else
-          ow.run
+          ow.test
         end
         ow
       end
     end
 
-    attr_reader :ssh, :json_file, :opsworks_json
-    attr_reader :rc
-
-    def initialize
+    def initialize(args)
+      @args = args
       @rc = 0
       @ssh = {
         user: ENV['OW_SSH_USER'],
@@ -116,20 +117,74 @@ module Ow
       end
     end
 
-    def run
-      puts "run test"
+    def spawn_container
+      @instances.each do |i|
+        puts "> Create container for: #{i['private_ip']}"
+        i.run
+        puts "> Got IP: #{i.container_ip}"
+      end
     end
 
+    # Filter containers base on our condition
+    # Logic:
+    # * -> all
+    # all -> all
+    # first -> first one only
+    # last -> last on
+    # rnd -> random
+    # cluster1 -> a particular host
+    # cluster1,cluster2 -> multiple hosts
+    def filter(hosts, instance)
+      if hosts == '*' || hosts == 'all'
+        return true
+      end
+
+      if instance.name == hosts 
+        return true
+      end
+
+      if hosts.include?(',')
+        h = hosts.split(',').map(&:strip)
+        return h.include?(instance.name)
+      end
+    end
+
+    # Run command on container
+    def run_on(name)
+      @instances.select do |i|
+        filter(name, i)
+      end.each do |i|
+        cmd = "docker exec #{i.container_name} #{yield}"
+        o, s = Open3.capture2(cmd, :stdin_data => "")
+        puts "\n================\nRun on #{i.name}:\n#{o}\n================\n"
+      end
+    end
+
+    # Run test
+    def test
+      # Map container to host
+      spawn_container
+      host = args[1]
+
+      run_on host do
+        "chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /opt/opsworks/opsworks.json -l info"
+      end
+    end
+
+    # Destroy
     def destroy
       @instances.each(&:destroy)
     end
 
+    private
+    # Get json data
     def get_json
       cmd = %W{ssh -i
               #{@ssh[:key]}
               #{@ssh[:user]}@#{@ssh[:host]}
       }.join(" ")
-
+      o, s = Open3.capture2(cmd, :stdin_data => "")
+      
     end
   end
 end
