@@ -19,10 +19,10 @@ module Ow
     def inspect
       o, s = Open3.capture2("docker inspect #{container_name}", :stdin_data => "")
       begin
-        @json = JSON.parse(s)
+        @json = JSON.parse(o)
         @json = @json.first
-        puts @json["NetworkSettings"]["IPAddress"]
-      rescue
+      rescue => e
+        puts e
       end
     end
 
@@ -34,10 +34,26 @@ module Ow
       end
     end
 
-    def run
-      cmd = "docker run --name #{container_name} -d kureikain/opsworks:0.1 dumb-init /bin/bash -c \"while true; do sleep 5; done\""
+    # Destroy container
+    def destroy
+      cmd = "docker stop #{container_name}"
       o, s = Open3.capture2(cmd, :stdin_data => "")
-      inspect
+      puts o
+      cmd = "docker rm #{container_name}"
+      o, s = Open3.capture2(cmd, :stdin_data => "")
+      puts o
+    end
+
+    def container_ip
+      @json["NetworkSettings"]["IPAddress"]
+    end
+
+    def run
+      if @json["NetworkSettings"].nil?
+        cmd = "docker run --name #{container_name} -d kureikain/opsworks:0.1 dumb-init /bin/bash -c \"while true; do sleep 5; done\""
+        o, s = Open3.capture2(cmd, :stdin_data => "")
+        inspect
+      end
     end
 
     private
@@ -49,9 +65,13 @@ module Ow
   class Runner
 
     class << self
-      def run!(args)
+      def dispatch(args)
         ow = Runner.new
-        ow
+        if args[0] == 'destroy' 
+          ow.destroy
+        else
+          ow.run
+        end
         ow
       end
     end
@@ -90,13 +110,18 @@ module Ow
 
     def setup
       @instances.each do |i|
-        puts "Create container for: #{i['private_ip']}"
+        puts "> Create container for: #{i['private_ip']}"
         i.run
+        puts "> Got IP: #{i.container_ip}"
       end
     end
 
     def run
       puts "run test"
+    end
+
+    def destroy
+      @instances.each(&:destroy)
     end
 
     def get_json
@@ -109,5 +134,4 @@ module Ow
   end
 end
 
-exit(Ow::Runner.run!(ARGV).rc)
-
+exit(Ow::Runner.dispatch(ARGV).rc)
