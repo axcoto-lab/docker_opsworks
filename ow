@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+
+module Ow
+
+  class Runner
+
+    class << self
+      def run!(args)
+        ow = Ow.new
+        puts args
+        ow
+      end
+    end
+
+    attr_reader :ssh
+    def initialize
+      @ssh = {
+        user: ENV[:OW_SSH_USER],
+        host: ENV[:OW_SSH_HOST],
+        key:  ENV[:OW_SSH_KEY],
+      }
+    end
+
+    def get_json
+      cmd = %W{ssh -i
+              #{@ssh[:key]}
+              #{@ssh[:user]}@#{@ssh[:host]}
+      }.join(" ")
+
+    end
+  end
+end
+
+Ow.run! ARGV
+puts `which ruby`
