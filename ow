@@ -3,6 +3,7 @@
 require 'json'
 require 'pp'
 require 'open3'
+require 'yaml'
 
 module Ow
 
@@ -70,8 +71,13 @@ module Ow
     class << self
       def dispatch(args)
         ow = Runner.new args
-        if args[0] == 'destroy' 
+        case args[0]
+        when 'destroy'
           ow.destroy
+        when 'json', 'getjson'
+          ow.get_json
+        when 'init'
+          ow.init
         else
           ow.test
         end
@@ -185,7 +191,6 @@ module Ow
       @instances.each(&:destroy)
     end
 
-    private
     # Get json data
     def get_json
       cmd = %W{ssh -i
@@ -193,7 +198,20 @@ module Ow
               #{@ssh[:user]}@#{@ssh[:host]}
       }.join(" ")
       o, s = Open3.capture2(cmd, :stdin_data => "")
-      
+      File.open('opsworks.json') { |f| f.write o }.close
+    end
+
+    def init
+      File.open('ow.yml', 'w') do |f|
+        f.write <<-EOF
+---
+SSH:
+  User: ubuntu
+  Host:
+  Key:
+        EOF
+      end
+      puts "> You can edit content of ow.yml file"
     end
   end
 end
