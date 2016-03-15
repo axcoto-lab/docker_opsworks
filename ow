@@ -6,6 +6,7 @@ require 'open3'
 require 'yaml'
 
 module Ow
+  CONTAINER_NAME = "kureikain/opsworks:0.3"
 
   class Instance
     attr_reader :name, :layer
@@ -51,7 +52,7 @@ module Ow
 
     def run
       if @json.nil? || @json["NetworkSettings"].nil?
-        cmd = "docker run --name #{container_name} -d -v #{Dir.pwd}:/opt/opsworks kureikain/opsworks:0.1 dumb-init /bin/bash -c \"while true; do sleep 5; done\""
+        cmd = "docker run --name #{container_name} -d -v #{Dir.pwd}:/opt/opsworks #{CONTAINER_NAME} dumb-init /bin/bash -c \"while true; do sleep 5; done\""
         o, s = Open3.capture2(cmd, :stdin_data => "")
         inspect
       end
@@ -166,20 +167,34 @@ module Ow
       end
     end
 
+    # Fix IP address
+    def match_private_ip_to_container
+      @instances.map do |i|
+        "sed -ie \"s/#{i['private_ip'].gsub('.', '\.')}/#{i.container_ip}/g\" /ops/opsworks.json"
+      end.join(";")
+    end
+
     # Run test
     def test
       # Map container to host
       spawn_container
       host = args[1]
-
+      if host.nil? || host == ''
+        @rc = 1
+        puts "Plese specify hosts"
+        return
+      end
+      s = match_private_ip_to_container
+      puts s
       run_on host do
         %Q{
         mkdir -p /ops/cookbooks;
         cp /opt/opsworks/opsworks.json /ops;
         cp /opt/opsworks/Berksfile /ops;
         cd /ops;
+        #{s};
         berks install; berks vendor cookbooks;
-        cp -rf /opt/opsworks/* /ops/cookbooks;
+        rsync -rap /opt/opsworks/ cookbooks/;
         chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /opt/opsworks/opsworks.json -l info;
         ls -la /opt/opsworks/
         }
