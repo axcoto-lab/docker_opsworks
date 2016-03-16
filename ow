@@ -15,8 +15,21 @@ module Ow
     end
   end
 
+  class Command
+    attr_reader :insance
+
+    def initialize(instance)
+      @instance = instance
+    end
+  end
+
+
   class Instance
     attr_reader :name, :layer
+
+    def to_hash
+      @hash.merge({'name' => name})
+    end
 
     def initialize(layer, name, hash)
       @layer = layer
@@ -94,10 +107,26 @@ module Ow
           ow.init
         when 'exec'
           ow.exec
-        else
+        when 'current'
+          ow.promote_current args[1]
+        when 'test'
           ow.test
+        when 'ls'
+          ow.list
+        else
+          help
         end
         ow
+      end
+
+      def help
+        puts <<-EOF
+        destroy: destroy container
+        init: init container
+        current: set current to this node
+        test: run test
+        ls: list instance in JSON file
+        EOF
       end
     end
 
@@ -111,7 +140,6 @@ module Ow
       }
       @json_file = ENV['OW_JSON'] || 'opsworks.json'
       parse
-      setup
     end
 
     def parse
@@ -131,14 +159,7 @@ module Ow
       end
     end
 
-    def setup
-      @instances.each do |i|
-        puts "> Create container for: #{i['private_ip']}"
-        i.run
-        puts "> Got IP: #{i.container_ip}"
-      end
-    end
-
+    # Spawn container
     def spawn_container
       @instances.each do |i|
         puts "> Create container for: #{i['private_ip']}"
@@ -189,6 +210,21 @@ module Ow
       end.join(";")
     end
 
+    # Update current instance
+    def promote_current(name)
+      node = @instances.select { |i| name == i.name }
+      if node.empty?
+        puts "Cannot find node #{name}"
+      else
+        node = node.first
+        @opsworks_json["opsworks"]["instance"].merge!(node.to_hash)
+        puts JSON.generate(@opsworks_json, object_nl: "\n", array_nl: "\n")
+        File.open("./opsworks.json", 'w') do |f|
+          f.write(JSON.pretty_generate(@opsworks_json, object_nl: "\n", array_nl: "\n"))
+        end
+      end
+    end
+
     # Run test
     def test
       # Map container to host
@@ -222,6 +258,11 @@ module Ow
       @instances.each(&:destroy)
     end
 
+    # List nodes
+    def list
+      @instances.each { |i| puts "=============\n#{i.name}\n>#{i.to_hash}\n\n" }
+    end
+
     # Get json data
     def get_json
       cmd = %W{ssh -i
@@ -233,6 +274,7 @@ module Ow
     end
 
     def init
+      spawn_container
       File.open('ow.yml', 'w') do |f|
         f.write <<-EOF
 ---
