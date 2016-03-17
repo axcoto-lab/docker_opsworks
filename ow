@@ -16,10 +16,14 @@ module Ow
       puts "> name"
       name = STDIN.gets.chomp
       puts "> private ip"
-      name = STDIN.gets.chomp
+      private_ip = STDIN.gets.chomp
       puts "> Will generate random public ip"
 
       puts "> Update our opswork file"
+      instance = Instance.new(layer, name, {
+        'private_ip' => private_ip
+      })
+      
     end
   end
 
@@ -113,6 +117,26 @@ module Ow
       opsworks_json["opsworks"]["instance"].merge!(node.to_hash)
 
       puts JSON.generate(opsworks_json, object_nl: "\n", array_nl: "\n")
+      save!
+    end
+
+    def flush
+      save!
+    end
+
+    def add(element)
+      case element
+      when Instance
+        add_instance(element)
+      end
+    end
+
+    def add_instance(instance)
+      opsworks_json["opsworks"]["layers"][instance.layer][instance.name] = instance.to_hash
+    end
+
+    private
+    def save!
       File.open(json_file, 'w') do |f|
         f.write(JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n"))
       end
@@ -277,14 +301,10 @@ module Ow
       puts "> Update Host IP to container IP using sed.\n#{s}\n=====================\n"
       run_on host do
         %Q{
-        mkdir -p /ops/cookbooks;
-        cp /opt/opsworks/opsworks.json /ops;
-        cp /opt/opsworks/Berksfile /ops;
+        mkdir -p /ops/cookbooks; cp /opt/opsworks/opsworks.json /ops; cp /opt/opsworks/Berksfile /ops;
         cd /ops;
-        #{s};
-        berks install; berks vendor cookbooks;
-        rsync -rap /opt/opsworks/ cookbooks/;
-        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/opsworks.json -l info 2>&1;
+        export LC_CTYPE=en_US.UTF-8; berks install; berks vendor cookbooks; 
+        rsync -rap /opt/opsworks/ cookbooks/; chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/opsworks.json -l info 2>&1;
         }
       end
     end
