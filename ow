@@ -10,8 +10,16 @@ module Ow
   CONTAINER_NAME = "kureikain/opsworks:0.3"
 
   class Generator
-    def instance(layer, instance)
+    def instance
+      puts "> Layer ?"
+      layer = STDIN.gets.chomp
+      puts "> name"
+      name = STDIN.gets.chomp
+      puts "> private ip"
+      name = STDIN.gets.chomp
+      puts "> Will generate random public ip"
 
+      puts "> Update our opswork file"
     end
   end
 
@@ -89,6 +97,28 @@ module Ow
     end
   end
 
+  class Json
+    attr_reader :hash, :json_file, :opsworks_json
+
+    def initialize(json_file)
+      @json_file = json_file
+      @opsworks_json = JSON.parse(File.read(json_file))
+    end
+
+    def layers
+      opsworks_json["opsworks"]["layers"]
+    end
+
+    def merge_current_instance!(node)
+      opsworks_json["opsworks"]["instance"].merge!(node.to_hash)
+
+      puts JSON.generate(@opsworks_json, object_nl: "\n", array_nl: "\n")
+      File.open(json_file, 'w') do |f|
+        f.write(JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n"))
+      end
+    end
+  end
+
   class Runner
 
     attr_reader :ssh, :json_file, :opsworks_json
@@ -107,12 +137,14 @@ module Ow
           ow.init
         when 'exec'
           ow.exec
-        when 'current'
+        when 'current', 'promote'
           ow.promote_current args[1]
         when 'test'
           ow.test
         when 'ls'
           ow.list
+        when 'generate'
+          ow.generate
         else
           help
         end
@@ -144,9 +176,9 @@ module Ow
 
     def parse
       begin
-        @opsworks_json = JSON.parse(File.read(@json_file))
+        @opsworks_json = Json.new @json_file
 
-        @instances = @opsworks_json["opsworks"]["layers"]
+        @instances = @opsworks_json.layers
           .select {|name, l| !l["instances"].nil? }
           .map do |name, layer|
           layer["instances"].map do |host, instance|
@@ -217,11 +249,16 @@ module Ow
         puts "Cannot find node #{name}"
       else
         node = node.first
-        @opsworks_json["opsworks"]["instance"].merge!(node.to_hash)
-        puts JSON.generate(@opsworks_json, object_nl: "\n", array_nl: "\n")
-        File.open("./opsworks.json", 'w') do |f|
-          f.write(JSON.pretty_generate(@opsworks_json, object_nl: "\n", array_nl: "\n"))
-        end
+        @opsworks_json.merge_current_instance!(node) 
+      end
+    end
+
+    # Generator
+    def generate
+      type = args[1]
+      case type
+      when 'host'
+        Ow::Generator.new.instance
       end
     end
 
