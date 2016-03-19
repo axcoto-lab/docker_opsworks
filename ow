@@ -7,7 +7,7 @@ require 'yaml'
 require 'digest'
 
 module Ow
-  CONTAINER_NAME = "kureikain/opsworks:0.3"
+  CONTAINER_NAME = "kureikain/opsworks:0.4"
 
   class Generator
     def instance
@@ -82,9 +82,10 @@ module Ow
       @json["NetworkSettings"]["IPAddress"]
     end
 
-    def run
+    def run(opt)
       if @json.nil? || @json["NetworkSettings"].nil?
-        cmd = "docker run --name #{container_name} -d -v #{Dir.pwd}:/opt/opsworks #{CONTAINER_NAME}"
+        cmd = "docker run --name #{container_name} -h #{name} -d -v #{Dir.pwd}:/opt/opsworks #{CONTAINER_NAME}"
+        puts cmd
         o, s = Open3.capture2(cmd, :stdin_data => "")
         inspect
       end
@@ -219,8 +220,11 @@ module Ow
     def spawn_container
       @instances.each do |i|
         puts "> Create container for: #{i['private_ip']}"
-        i.run
+        i.run({})
         puts "> Got IP: #{i.container_ip}"
+      end
+      run_on('all', silent: true) do
+        inject_hostname
       end
     end
 
@@ -249,15 +253,27 @@ module Ow
     end
 
     # Run command on container
-    def run_on(name)
+    def run_on(name, opts = {})
       @instances.select do |i|
         filter(name, i)
       end.each do |i|
         build_cmd = yield
-        cmd = "docker exec #{i.container_name} /bin/bash -c \"#{build_cmd}\""
-        o, s = Open3.capture2(cmd, :stdin_data => "")
-        puts "\n================\nRun on #{i.name}:\n#{build_cmd}\n#{o}\n================\nOutput\n"
+        if opts[:silent]
+          Open3.capture2(cmd, :stdin_data => "")
+        else
+          cmd = "docker exec #{i.container_name} /bin/bash -c \"#{build_cmd}\""
+          o, s = Open3.capture2(cmd, :stdin_data => "")
+          puts "\n================\nRun on #{i.name}:\n#{build_cmd}\n#{o}\n================\nOutput\n"
+        end
       end
+    end
+
+    # Inject hostname
+    def inject_hostname
+      hosts = @instances.map do |i|
+        "#{i.container_ip} #{i.name}"
+      end.join('\n')
+      "echo -e '#{hosts}' >> /etc/hosts"
     end
 
     # Fix IP address
@@ -301,10 +317,12 @@ module Ow
       puts "> Update Host IP to container IP using sed.\n#{s}\n=====================\n"
       run_on host do
         %Q{
-        mkdir -p /ops/cookbooks; cp /opt/opsworks/opsworks.json /ops; cp /opt/opsworks/Berksfile /ops;
-        cd /ops;
-        export LC_CTYPE=en_US.UTF-8; berks install; berks vendor cookbooks; 
-        rsync -rap /opt/opsworks/ cookbooks/; chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/opsworks.json -l info 2>&1;
+        mkdir -p /ops/cookbooks; cp /opt/opsworks/opsworks.json /ops;#{s};
+        cp /opt/opsworks/Berksfile /ops; cd /ops; rsync -rap /opt/opsworks/ cookbooks/;
+        rsync -rap /opt/opsworks-cookbooks/ cookbooks/;
+        export LC_CTYPE=en_US.UTF-8; berks install; berks vendor a;
+        cp -rf a/* cookbooks/;
+        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/opsworks.json -l info 2>&1;
         }
       end
     end
