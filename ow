@@ -258,10 +258,10 @@ module Ow
         filter(name, i)
       end.each do |i|
         build_cmd = yield
+        cmd = "docker exec #{i.container_name} /bin/bash -c \"#{build_cmd}\""
         if opts[:silent]
           Open3.capture2(cmd, :stdin_data => "")
         else
-          cmd = "docker exec #{i.container_name} /bin/bash -c \"#{build_cmd}\""
           o, s = Open3.capture2(cmd, :stdin_data => "")
           puts "\n================\nRun on #{i.name}:\n#{build_cmd}\n#{o}\n================\nOutput\n"
         end
