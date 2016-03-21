@@ -170,6 +170,8 @@ module Ow
           ow.list
         when 'generate'
           ow.generate
+        when 'fw', 'forward'
+          ow.forward_port
         else
           help
         end
@@ -183,6 +185,7 @@ module Ow
         current: set current to this node
         test: run test
         ls: list instance in JSON file
+        forward: fw container src-port1 dest-port1 src-port2 dest-port2
         EOF
       end
     end
@@ -250,6 +253,7 @@ module Ow
         h = hosts.split(',').map(&:strip)
         return h.include?(instance.name)
       end
+
     end
 
     # Run command on container
@@ -344,7 +348,19 @@ module Ow
 
     # Forward port to local use open ssh
     def forward_port
-      ssh -nNT  -L 5673:172.17.0.5:5672 -L 15673:172.17.0.5:15672  docker@192.168.99.100
+      name = args[1]
+      ip = @instances.select do |i|
+        puts i.container_name
+        puts name
+        i.container_name.include?(name)
+      end.map { |i| i.container_ip }.first
+      ports_map = args[2..args.length].each_slice(2).map do |port|
+        "-L #{port[0]}:#{ip}:#{port[1]}"
+      end
+      puts ports_map
+      #.join(" ")
+      forward_cmd =  "ssh -nNT #{ports_map} docker@192.168.99.100"
+      puts "> Will forward with command: \n#{forward_port}"
     end
 
     # Get json data
