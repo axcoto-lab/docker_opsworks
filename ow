@@ -315,6 +315,11 @@ module Ow
       spawn_container
       s = match_private_ip_to_container
       puts "> Update Host IP to container IP using sed.\n#{s}\n=====================\n"
+      test_option = "-l info"
+      if !args[3].nil?
+        test_option = args.slice(3, args.length).join(' ')
+      end
+
       run_on host do
         %Q{
         mkdir -p /ops/cookbooks; cp /opt/opsworks/opsworks.json /ops;#{s};
@@ -322,7 +327,7 @@ module Ow
         rsync -rap /opt/opsworks-cookbooks/ cookbooks/;
         export LC_CTYPE=en_US.UTF-8; berks install; berks vendor a;
         cp -rf a/* cookbooks/;
-        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/opsworks.json -l info 2>&1;
+        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/opsworks.json #{test_option} 2>&1;
         }
       end
     end
@@ -335,6 +340,11 @@ module Ow
     # List nodes
     def list
       @instances.each { |i| puts "=============\n#{i.name}\n>#{i.to_hash}\n\n" }
+    end
+
+    # Forward port to local use open ssh
+    def forward_port
+      ssh -nNT  -L 5673:172.17.0.5:5672 -L 15673:172.17.0.5:15672  docker@192.168.99.100
     end
 
     # Get json data
