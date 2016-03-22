@@ -22,12 +22,34 @@ module Ow
 
       puts "> Update our opswork file"
       instance = Instance.new(layer, name, {
-        'private_ip' => private_ip
+        'private_ip' => private_ip,
+        "public_dns_name" =>  'null',
+        "private_dns_name" => "ip-10-50-10-131.ec2.internal",
+        "backends" => 2,
+        "ip" => "54.174.228.136",
+        "instance_type" => "t2.micro",
+        "status" => "online",
+        "id" => "fbfbd3f8-de1e-4d8f-a391-b9a114721a3b",
+        "aws_instance_id" =>  gen_instance_id,
+        "elastic_ip" =>  'null',
+        "created_at" => Time.now.strftime("%Y-%m-%dT%H:%M:%S-07:00"),
+        "booted_at" => Time.now.strftime("%Y-%m-%dT%H:%M:%S-07:00"),
+        "region" =>  "us-east-1",
+        "availability_zone" => "us-east-1e",
+        "infrastructure_class" => "ec2"
       })
 
       @opsworks_json = Json.new JSON_FILE
       @opsworks_json.add(instance)
-      @opsworks_json.flush!
+      @opsworks_json.flush
+    end
+
+    private
+    def gen_instance_id
+      value = []
+      value << (0...32).map{ ('A'..'Z').to_a[rand(26)]  }.join
+      value << Time.new.to_i
+      Digest::SHA256.hexdigest(value.join("-"))[0..6]
     end
   end
 
@@ -111,7 +133,12 @@ module Ow
 
     def initialize(json_file)
       @json_file = json_file
-      @opsworks_json = JSON.parse(File.read(json_file))
+      begin
+        @opsworks_json = JSON.parse(File.read(json_file))
+      rescue e
+        puts "Error when parse JSON. #{e}"
+        exit 1
+      end
     end
 
     def layers
@@ -137,11 +164,15 @@ module Ow
     end
 
     def add_instance(instance)
+      if opsworks_json["opsworks"]["layers"][instance.layer].nil?
+        opsworks_json["opsworks"]["layers"][instance.layer] = {}
+      end
       opsworks_json["opsworks"]["layers"][instance.layer][instance.name] = instance.to_hash
     end
 
     private
     def save!
+JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
       File.open(json_file, 'w') do |f|
         f.write(JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n"))
       end
@@ -190,6 +221,8 @@ module Ow
         test: run test
         ls: list instance in JSON file
         forward: fw container src-port1 dest-port1 src-port2 dest-port2
+        generate host: generate a host and save to JSON
+        generate layer: generate a layer and save to JSON(Not implement yet)
         EOF
       end
     end
