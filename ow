@@ -8,6 +8,7 @@ require 'digest'
 
 module Ow
   CONTAINER_NAME = "kureikain/opsworks:0.4"
+  JSON_FILE      = "opsworks.json"
 
   class Generator
     def instance
@@ -23,7 +24,10 @@ module Ow
       instance = Instance.new(layer, name, {
         'private_ip' => private_ip
       })
-      
+
+      @opsworks_json = Json.new JSON_FILE
+      @opsworks_json.add(instance)
+      @opsworks_json.flush!
     end
   end
 
@@ -198,7 +202,7 @@ module Ow
         host: ENV['OW_SSH_HOST'],
         key:  ENV['OW_SSH_KEY'],
       }
-      @json_file = ENV['OW_JSON'] || 'opsworks.json'
+      @json_file = ENV['OW_JSON'] || JSON_FILE
       parse
     end
 
@@ -214,7 +218,7 @@ module Ow
           end
         end.flatten
       rescue  => e
-        puts "Cannot parse json. #{e}"
+        puts "Cannot parse json. #{e}.\n Are you in right directory?"
         exit 1
       end
     end
@@ -283,7 +287,7 @@ module Ow
     # Fix IP address
     def match_private_ip_to_container
       @instances.map do |i|
-        "sed -ie \"s/#{i['private_ip'].gsub('.', '\.')}/#{i.container_ip}/g\" /ops/opsworks.json"
+        "sed -ie \"s/#{i['private_ip'].gsub('.', '\.')}/#{i.container_ip}/g\" /ops/#{JSON_FILE}"
       end.join(";")
     end
 
@@ -326,12 +330,12 @@ module Ow
 
       run_on host do
         %Q{
-        mkdir -p /ops/cookbooks; cp /opt/opsworks/opsworks.json /ops;#{s};
+        mkdir -p /ops/cookbooks; cp /opt/opsworks/#{JSON_FILE} /ops;#{s};
         cp /opt/opsworks/Berksfile /ops; cd /ops; rsync -rap /opt/opsworks/ cookbooks/;
         rsync -rap /opt/opsworks-cookbooks/ cookbooks/;
         export LC_CTYPE=en_US.UTF-8; berks install; berks vendor a;
         cp -rf a/* cookbooks/;
-        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/opsworks.json #{test_option} 2>&1;
+        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/#{JSON_FILE} #{test_option} 2>&1;
         }
       end
     end
@@ -370,7 +374,7 @@ module Ow
               #{@ssh[:user]}@#{@ssh[:host]}
       }.join(" ")
       o, s = Open3.capture2(cmd, :stdin_data => "")
-      File.open('opsworks.json') { |f| f.write o }.close
+      File.open(JSON_FILE) { |f| f.write o }.close
     end
 
     def init
