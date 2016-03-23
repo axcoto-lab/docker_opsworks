@@ -411,17 +411,24 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
     end
 
     def init
-      spawn_container
+      #spawn_container
+      user = STDIN.gets.chomp
+      host = STDIN.gets.chomp
+      key  = STDIN.gets.chomp
+
       File.open('ow.yml', 'w') do |f|
         f.write <<-EOF
 ---
 SSH:
-  User: ubuntu
-  Host:
-  Key:
+  User: #{user}
+  Host: #{host}
+  Key: #{key}
         EOF
       end
-      puts "> You can edit content of ow.yml file"
+      puts "> You can manually edit content of ow.yml file later."
+      puts ">Try to get initial JSON"
+      o, s = Open3.capture2("ssh -i #{key} #{user}@#{host} 'sudo opsworks-agent-cli get_json > /tmp/attributes.json'", :stdin_data => "")
+      File.open(JSON_FILE) { |f| f.write o }.close
     end
   end
 end
