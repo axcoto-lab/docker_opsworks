@@ -10,9 +10,18 @@ module Ow
   CONTAINER_NAME = "kureikain/opsworks:0.4"
   JSON_FILE      = "opsworks.json"
 
+  class << self
+  def colorize(text, color_code)
+      "#{color_code}#{text}\033[0m"
+  end
+
+  def red(text); colorize(text, "\033[31m"); end
+  def green(text); colorize(text, "\033[32m"); end
+  end
+
   class Generator
     def instance
-      puts "> Layer ?"
+      puts green("> Layer ?")
       layer = STDIN.gets.chomp
       puts "> name"
       name = STDIN.gets.chomp
@@ -61,6 +70,18 @@ module Ow
     end
   end
 
+  class Layer
+    attr_reader :name, :hash
+
+    def initialize(name, hash)
+      @name = name
+      @hash = hash
+    end
+
+    def to_hash
+      @hash.merge({'name' => name})
+    end
+  end
 
   class Instance
     attr_reader :name, :layer
@@ -160,6 +181,8 @@ module Ow
       case element
       when Instance
         add_instance(element)
+      when Layer
+        add_layer(element)
       end
     end
 
@@ -168,6 +191,10 @@ module Ow
         opsworks_json["opsworks"]["layers"][instance.layer] = {}
       end
       opsworks_json["opsworks"]["layers"][instance.layer][instance.name] = instance.to_hash
+    end
+
+    def add_layer(layer)
+      opsworks_json["opsworks"]["layers"][layer["name"]] = layer
     end
 
     private
@@ -341,6 +368,8 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
       case type
       when 'host'
         Ow::Generator.new.instance
+      else
+        puts Ow::red("Invalid type")
       end
     end
 
