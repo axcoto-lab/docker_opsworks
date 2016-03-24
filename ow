@@ -11,12 +11,13 @@ module Ow
   JSON_FILE      = "opsworks.json"
 
   class << self
-  def colorize(text, color_code)
-      "#{color_code}#{text}\033[0m"
-  end
+    def colorize(text, color_code)
+        "#{color_code}#{text}\033[0m"
+    end
 
-  def red(text); colorize(text, "\033[31m"); end
-  def green(text); colorize(text, "\033[32m"); end
+    def red(text); colorize(text, "\033[31m"); end
+    def green(text); colorize(text, "\033[32m"); end
+    def yellow(text); colorize(text, "\033[43m"); end
   end
 
   class Generator
@@ -224,6 +225,8 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
           ow.init
         when 'exec'
           ow.exec
+        when 'ssh'
+          ow.ssh
         when 'current', 'promote'
           ow.promote_current args[1]
         when 'test'
@@ -414,19 +417,22 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
 
     # Forward port to local use open ssh
     def forward_port
-      name = args[1]
-      ip = @instances.select do |i|
-        puts i.container_name
-        puts name
-        i.container_name.include?(name)
-      end.map { |i| i.container_ip }.first
-      ports_map = args[2..args.length].each_slice(2).map do |port|
-        "-L #{port[0]}:#{ip}:#{port[1]}"
+      if `ssh docker@192.168.99.100 pwd`.strip != '/home/docker'
+        puts Ow::red("* Make sure that you can ssh into docker machine.")
+        exit 2
       end
-      puts ports_map
-      #.join(" ")
+
+      name = args[1]
+      ip = @instances
+            .select { |i| i.container_name.include?(name) }
+            .map { |i| i.container_ip }
+            .first
+      ports_map = args[2..args.length].each_slice(2).map do |src, dest|
+        "-L #{src}:#{ip}:#{dest}"
+      end.join(" ")
       forward_cmd =  "ssh -nNT #{ports_map} docker@192.168.99.100"
-      puts "> Will forward with command: \n#{forward_port}"
+      puts Ow::yellow("> Will forward with command: \n#{forward_cmd}")
+      exec(forward_cmd)
     end
 
     # Get json data
