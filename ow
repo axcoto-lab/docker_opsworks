@@ -212,6 +212,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
     attr_reader :ssh, :json_file, :opsworks_json
     attr_reader :args
     attr_reader :rc
+    attr_reader :container_name
 
     class << self
       def dispatch(args)
@@ -265,6 +266,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
         host: ENV['OW_SSH_HOST'],
         key:  ENV['OW_SSH_KEY'],
       }
+      @container_name = CONTAINER_NAME
       @json_file = ENV['OW_JSON'] || JSON_FILE
       parse
     end
@@ -280,6 +282,11 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
             Instance.new name, host, instance
           end
         end.flatten
+
+        config = YAML.load_file('ow.yml')
+        if config.CONTAINER_NAME
+          @container_name = config.CONTAINER_NAME
+        end
       rescue  => e
         puts "Cannot parse json. #{e}.\n Are you in right directory?"
         exit 1
@@ -446,7 +453,6 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
     end
 
     def init
-      #spawn_container
       user = STDIN.gets.chomp
       host = STDIN.gets.chomp
       key  = STDIN.gets.chomp
@@ -458,9 +464,10 @@ SSH:
   User: #{user}
   Host: #{host}
   Key: #{key}
+CONTAINER_NAME: "kureikain/opsworks:0.4"
         EOF
       end
-      puts "> You can manually edit content of ow.yml file later."
+      puts "> You can manually edit content of ow.yml file later if you want."
       puts ">Try to get initial JSON"
       o, s = Open3.capture2("ssh -i #{key} #{user}@#{host} 'sudo opsworks-agent-cli get_json > /tmp/attributes.json'", :stdin_data => "")
       File.open(JSON_FILE) { |f| f.write o }.close
