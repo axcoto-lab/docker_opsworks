@@ -261,11 +261,6 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
     def initialize(args)
       @args = args
       @rc = 0
-      @ssh = {
-        user: ENV['OW_SSH_USER'],
-        host: ENV['OW_SSH_HOST'],
-        key:  ENV['OW_SSH_KEY'],
-      }
       @container_name = CONTAINER_NAME
       @json_file = ENV['OW_JSON'] || JSON_FILE
       parse
@@ -475,4 +470,7 @@ CONTAINER_NAME: "kureikain/opsworks:0.4"
   end
 end
 
-exit(Ow::Runner.dispatch(ARGV).rc)
+# Allow us to load this when run test
+if $PROGRAM_NAME.split('/').last == 'ow'
+  exit(Ow::Runner.dispatch(ARGV).rc)
+end
