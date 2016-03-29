@@ -21,18 +21,45 @@ module Ow
   end
 
   class Generator
+    attr_reader :json_file
+    # When value is a string, output it
+    # When a symbol, invoke method to get it
+    SCHEMA = {
+      :instance => {
+        :layer => "Layer",
+        :name => "Name",
+        :private_ip => 'private_ip',
+      }
+    }
+
+    def initialize(file = JSON_FILE)
+      @json_file = file
+    end
+
+    def gather_input(schema)
+      input = {}
+      scheme.each do |k,v|
+        puts green("> Enter #{k}:")
+        input_data = nil
+        case v
+          when Symbol
+            input_data = self.send(v)
+          when String
+            input_data = STDIN.gets.chomp
+          else
+        end
+        input[k] = input_data
+      end
+      input
+    end
+
     def instance
-      puts green("> Layer ?")
-      layer = STDIN.gets.chomp
-      puts "> name"
-      name = STDIN.gets.chomp
-      puts "> private ip"
-      private_ip = STDIN.gets.chomp
+      input = gather_input SCHEMA[:instance]
       puts "> Will generate random public ip"
 
       puts "> Update our opswork file"
-      instance = Instance.new(layer, name, {
-        'private_ip' => private_ip,
+      instance = Instance.new(input[:layer], input[:name], {
+        'private_ip' => input[:private_ip],
         "public_dns_name" =>  'null',
         "private_dns_name" => "ip-10-50-10-131.ec2.internal",
         "backends" => 2,
@@ -49,7 +76,7 @@ module Ow
         "infrastructure_class" => "ec2"
       })
 
-      @opsworks_json = Json.new JSON_FILE
+      @opsworks_json = Json.new json_file
       @opsworks_json.add(instance)
       @opsworks_json.flush
     end
