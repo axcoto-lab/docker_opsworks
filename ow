@@ -43,10 +43,15 @@ module Ow
         input_data = nil
         case v
           when Symbol
-            input_data = self.send(v)
+            if self.respond_to?(v)
+              input_data = self.send(v)
+            end
+            puts "Missing method #{v} for generator"
+            exit 1
           when String
             input_data = STDIN.gets.chomp
           else
+            puts "Unsupport #{k} #{v}"
         end
         input[k] = input_data
       end
