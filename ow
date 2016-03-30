@@ -29,6 +29,12 @@ module Ow
         :layer => "Layer",
         :name => "Name",
         :private_ip => 'private_ip',
+        :ip => :gen_ip_v4,
+        :aws_instance_id => :gen_instance_id,
+      },
+
+      :layer => {
+        :name => "Name"
       }
     }
 
@@ -68,11 +74,11 @@ module Ow
         "public_dns_name" =>  'null',
         "private_dns_name" => "ip-10-50-10-131.ec2.internal",
         "backends" => 2,
-        "ip" => "54.174.228.136",
+        "aws_instance_id" => input[:aws_instance_id],
+        "ip" => input[:ip],
         "instance_type" => "t2.micro",
         "status" => "online",
         "id" => "fbfbd3f8-de1e-4d8f-a391-b9a114721a3b",
-        "aws_instance_id" =>  gen_instance_id,
         "elastic_ip" =>  'null',
         "created_at" => Time.now.strftime("%Y-%m-%dT%H:%M:%S-07:00"),
         "booted_at" => Time.now.strftime("%Y-%m-%dT%H:%M:%S-07:00"),
@@ -92,6 +98,10 @@ module Ow
       value << (0...32).map{ ('A'..'Z').to_a[rand(26)]  }.join
       value << Time.new.to_i
       Digest::SHA256.hexdigest(value.join("-"))[0..6]
+    end
+
+    def gen_ip_v4
+      ([54] << Array.new(3){rand(256)}).join('.')
     end
   end
 
