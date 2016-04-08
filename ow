@@ -321,12 +321,12 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
         end.flatten
 
         config = YAML.load_file('ow.yml')
-        if config.CONTAINER_NAME
-          @container_name = config.CONTAINER_NAME
+        if config["CONTAINER_NAME"]
+          @container_name = config["CONTAINER_NAME"]
         end
       rescue  => e
         puts "Cannot parse json. #{e}.\n Are you in right directory?"
-        exit 1
+        #exit 1
       end
     end
 
@@ -352,6 +352,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
     # cluster1 -> a particular host
     # cluster1,cluster2 -> multiple hosts
     def filter(hosts, instance)
+      puts "Evaludate filter to run: #{hosts.to_s}. instance: #{instance.name}"
       if hosts == '*' || hosts == 'all'
         return true
       end
@@ -365,14 +366,19 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
         return h.include?(instance.name)
       end
 
+      if hosts.is_a? String
+        return instance.name.include?(hosts)
+      end
     end
 
     # Run command on container
     def run_on(name, opts = {})
       @instances.select do |i|
+        puts name, i
         filter(name, i)
       end.each do |i|
         build_cmd = yield
+        puts "\n\n>> Run on #{i.container_name}. Build cmd: #{build_cmd}\n==================\n\n"
         cmd = "docker exec #{i.container_name} /bin/bash -c \"#{build_cmd}\""
         if opts[:silent]
           Open3.capture2(cmd, :stdin_data => "")
@@ -437,6 +443,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
         test_option = args.slice(3, args.length).join(' ')
       end
 
+      puts "TO: #{test_option} #{host}"
       run_on host do
         %Q{
         mkdir -p /ops/cookbooks; cp /opt/opsworks/#{JSON_FILE} /ops;#{s};
@@ -490,8 +497,11 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
     end
 
     def init
+      puts "User?"
       user = STDIN.gets.chomp
+      puts "Host?"
       host = STDIN.gets.chomp
+      puts "Host?"
       key  = STDIN.gets.chomp
 
       File.open('ow.yml', 'w') do |f|
@@ -506,7 +516,7 @@ CONTAINER_NAME: "kureikain/opsworks:0.4"
       end
       puts "> You can manually edit content of ow.yml file later if you want."
       puts ">Try to get initial JSON"
-      o, s = Open3.capture2("ssh -i #{key} #{user}@#{host} 'sudo opsworks-agent-cli get_json > /tmp/attributes.json'", :stdin_data => "")
+      o, s = Open3.capture2("ssh -i #{key} #{user}@#{host} 'sudo /usr/sbin/opsworks-agent-cli get_json'", :stdin_data => "")
       File.open(JSON_FILE) { |f| f.write o }.close
     end
   end
