@@ -85,7 +85,7 @@ module Ow
         "region" =>  "us-east-1",
         "availability_zone" => "us-east-1e",
         "infrastructure_class" => "ec2"
-      })
+      }, nil)
 
       @opsworks_json = Json.new json_file
       @opsworks_json.add(instance)
@@ -128,15 +128,17 @@ module Ow
 
   class Instance
     attr_reader :name, :layer
+    attr_reader :image_name
 
     def to_hash
       @hash.merge({'name' => name})
     end
 
-    def initialize(layer, name, hash)
+    def initialize(layer, name, hash, image_name)
       @layer = layer
       @name = name
       @hash = hash
+      @image_name = image_name
       inspect
     end
 
@@ -174,7 +176,7 @@ module Ow
 
     def run(opt)
       if @json.nil? || @json["NetworkSettings"].nil?
-        cmd = "docker run --name #{container_name} -h #{name} -d -v #{Dir.pwd}:/opt/opsworks #{CONTAINER_NAME}"
+        cmd = "docker run --privileged=true --name #{container_name} -h #{name} -d -v #{Dir.pwd}:/opt/opsworks #{image_name}"
         puts cmd
         o, s = Open3.capture2(cmd, :stdin_data => "")
         inspect
@@ -310,20 +312,22 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
 
     def parse
       begin
+        config = YAML.load_file('ow.yml')
+
+        if config["CONTAINER_NAME"]
+          @container_name = config["CONTAINER_NAME"]
+        end
+
         @opsworks_json = Json.new @json_file
 
         @instances = @opsworks_json.layers
           .select {|name, l| !l["instances"].nil? }
           .map do |name, layer|
           layer["instances"].map do |host, instance|
-            Instance.new name, host, instance
+            Instance.new name, host, instance, container_name
           end
         end.flatten
 
-        config = YAML.load_file('ow.yml')
-        if config["CONTAINER_NAME"]
-          @container_name = config["CONTAINER_NAME"]
-        end
       rescue  => e
         puts "Cannot parse json. #{e}.\n Are you in right directory?"
         #exit 1
