@@ -113,6 +113,16 @@ module Ow
     end
   end
 
+  class Docker
+    def run
+
+    end
+
+    def exec
+
+    end
+  end
+
   class Layer
     attr_reader :name, :hash
 
@@ -404,7 +414,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
     # Fix IP address
     def match_private_ip_to_container
       @instances.map do |i|
-        "sed -ie \"s/#{i['private_ip'].gsub('.', '\.')}/#{i.container_ip}/g\" /ops/#{JSON_FILE}"
+        "sed -ie \"s/#{i['private_ip'].gsub('.', '\.')}/#{i.container_ip}/g\" /ops/#{@json_file}"
       end.join(";")
     end
 
@@ -447,15 +457,15 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
         test_option = args.slice(3, args.length).join(' ')
       end
 
-      puts "TO: #{test_option} #{host}"
+      puts "Extra parameter: #{test_option} #{host}"
       run_on host do
         %Q{
-        mkdir -p /ops/cookbooks; cp /opt/opsworks/#{JSON_FILE} /ops;#{s};
+        mkdir -p /ops/cookbooks; cp /opt/opsworks/#{@json_file} /ops;#{s};
         cp /opt/opsworks/Berksfile /ops; cd /ops; rsync -rap /opt/opsworks/ cookbooks/;
         rsync -rap /opt/opsworks-cookbooks/ cookbooks/;
         export LC_CTYPE=en_US.UTF-8; berks install; berks vendor a;
         cp -rf a/* cookbooks/;
-        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/#{JSON_FILE} #{test_option} 2>&1;
+        chef-client --local-mode  -o 'recipe[#{args[2]}]' -j /ops/#{@json_file} #{test_option} 2>&1;
         }
       end
     end
@@ -497,7 +507,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
               #{@ssh[:user]}@#{@ssh[:host]}
       }.join(" ")
       o, s = Open3.capture2(cmd, :stdin_data => "")
-      File.open(JSON_FILE) { |f| f.write o }.close
+      File.open(@json_file) { |f| f.write o }.close
     end
 
     def init
@@ -521,7 +531,7 @@ CONTAINER_NAME: "kureikain/opsworks:0.4"
       puts "> You can manually edit content of ow.yml file later if you want."
       puts ">Try to get initial JSON"
       o, s = Open3.capture2("ssh -i #{key} #{user}@#{host} 'sudo /usr/sbin/opsworks-agent-cli get_json'", :stdin_data => "")
-      File.open(JSON_FILE) { |f| f.write o }.close
+      File.open(@json_file) { |f| f.write o }.close
     end
   end
 end
