@@ -193,8 +193,7 @@ module Ow
     def run(opt)
       if @json.nil? || @json["NetworkSettings"].nil?
         #cmd = "docker run --privileged=true --name #{container_name} -h #{name} -d -v #{Dir.pwd}:/opt/opsworks #{image_name}"
-        cmd = "docker run --privileged=true --name #{container_name} udo vi /endeludo vi /etc/elasticsearch/elasticsearch.yml
-        d -v #{Dir.pwd}:/opt/opsworks #{image_name}"
+        cmd = "docker run --privileged=true --name #{container_name} -d -v #{Dir.pwd}:/opt/opsworks #{image_name}"
         puts cmd
         o, s = Open3.capture2(cmd, :stdin_data => "")
         inspect
