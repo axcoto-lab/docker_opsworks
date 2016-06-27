@@ -180,13 +180,21 @@ module Ow
       puts "Destory #{o}"
     end
 
+    # Get Json from SSH host
+    def getjson
+
+    end
+
+
     def container_ip
       @json["NetworkSettings"]["IPAddress"]
     end
 
     def run(opt)
       if @json.nil? || @json["NetworkSettings"].nil?
-        cmd = "docker run --privileged=true --name #{container_name} -h #{name} -d -v #{Dir.pwd}:/opt/opsworks #{image_name}"
+        #cmd = "docker run --privileged=true --name #{container_name} -h #{name} -d -v #{Dir.pwd}:/opt/opsworks #{image_name}"
+        cmd = "docker run --privileged=true --name #{container_name} udo vi /endeludo vi /etc/elasticsearch/elasticsearch.yml
+        d -v #{Dir.pwd}:/opt/opsworks #{image_name}"
         puts cmd
         o, s = Open3.capture2(cmd, :stdin_data => "")
         inspect
@@ -232,6 +240,7 @@ module Ow
       save!
     end
 
+
     def add(element)
       case element
       when Instance
@@ -274,7 +283,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
         case args[0]
         when 'destroy'
           ow.destroy
-        when 'json', 'getjson'
+        when 'json', 'getjson', 'get_json'
           ow.get_json
         when 'init'
           ow.init
@@ -300,6 +309,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
 
       def help
         puts <<-EOF
+        getjson: Get json from SSH host define in yaml file
         destroy: destroy container
         init: init container
         current: set current to this node
@@ -338,8 +348,8 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
           end
         end.flatten
 
-      rescue  => e
-        puts "Cannot parse json. #{e}.\n Are you in right directory?"
+      rescue  Exception => e
+        puts "Cannot parse json. Please run `ow getjson` to fetch a new JSON.\n\n"
         #exit 1
       end
     end
@@ -502,12 +512,21 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
 
     # Get json data
     def get_json
+      config = YAML.load_file('ow.yml')
+      @ssh = config["SSH"]
+
       cmd = %W{ssh -i
-              #{@ssh[:key]}
-              #{@ssh[:user]}@#{@ssh[:host]}
+              #{@ssh["Key"]}
+              #{@ssh["User"]}@#{@ssh["Host"]}
+              "sudo /usr/sbin/opsworks-agent-cli get_json"
       }.join(" ")
+      puts cmd
+
       o, s = Open3.capture2(cmd, :stdin_data => "")
-      File.open(@json_file) { |f| f.write o }.close
+      puts o
+      puts @json_file
+
+      File.open(@json_file, "w") { |f| f.write o }
     end
 
     def init
@@ -515,7 +534,7 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
       user = STDIN.gets.chomp
       puts "Host?"
       host = STDIN.gets.chomp
-      puts "Host?"
+      puts "Key?"
       key  = STDIN.gets.chomp
 
       File.open('ow.yml', 'w') do |f|
@@ -529,9 +548,7 @@ CONTAINER_NAME: "kureikain/opsworks:0.4"
         EOF
       end
       puts "> You can manually edit content of ow.yml file later if you want."
-      puts ">Try to get initial JSON"
-      o, s = Open3.capture2("ssh -i #{key} #{user}@#{host} 'sudo /usr/sbin/opsworks-agent-cli get_json'", :stdin_data => "")
-      File.open(@json_file) { |f| f.write o }.close
+      puts "> Consider run ow getjson now to download json"
     end
   end
 end
