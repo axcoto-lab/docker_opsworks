@@ -180,12 +180,6 @@ module Ow
       puts "Destory #{o}"
     end
 
-    # Get Json from SSH host
-    def getjson
-
-    end
-
-
     def container_ip
       @json["NetworkSettings"]["IPAddress"]
     end
@@ -262,7 +256,7 @@ module Ow
 
     private
     def save!
-JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
+      JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
       File.open(json_file, 'w') do |f|
         f.write(JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n"))
       end
@@ -533,8 +527,12 @@ JSON.pretty_generate(opsworks_json, object_nl: "\n", array_nl: "\n")
       user = STDIN.gets.chomp
       puts "Host?"
       host = STDIN.gets.chomp
-      puts "Key?"
+      puts "Key?\n(Default: ~/.ssh/id_rsa)"
       key  = STDIN.gets.chomp
+      key = "~/.ssh/id_rsa" if key == ""
+      puts "Docker image?\n(Default: kureikain/opsworks:0.5)"
+      image  = STDIN.gets.chomp
+      image = "kureikain/opsworks:0.5" if image == ""
 
       File.open('ow.yml', 'w') do |f|
         f.write <<-EOF
@@ -543,7 +541,7 @@ SSH:
   User: #{user}
   Host: #{host}
   Key: #{key}
-CONTAINER_NAME: "kureikain/opsworks:0.4"
+CONTAINER_NAME: "#{image}"
         EOF
       end
       puts "> You can manually edit content of ow.yml file later if you want."
