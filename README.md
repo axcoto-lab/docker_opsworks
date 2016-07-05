@@ -23,6 +23,13 @@ This will create file call `ow.yml` with those parameters
 - *SSH_KEY*: private key to SSH to instance
 - *CONTAINER_NAME*: docker image name
 
+
+#### Support container
+
+- kureikain/opsworks:ubuntu ubuntu 14
+- kureikain/opsworks:centos centos 6
+- kureikain/opsworks:centos7 centos 7
+
 `ow` uses above params to SSH into instances and get the JSON.
 
 We will need to bring stack up first. The json can be grab from any
